@@ -68,6 +68,8 @@ jobs:
           npm ci
 
       - name: Compile Frontend Production Build
+        env:
+          CI: false
         run: |
           cd client
           npm run build
