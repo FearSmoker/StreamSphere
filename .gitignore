@@ -1,0 +1,90 @@
+# Log files
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime process files
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Code coverage instrumentation output
+lib-cov
+
+# Coverage reports
+coverage
+*.lcov
+.nyc_output
+
+# Build tool temporary files
+.grunt
+
+# Package manager dependencies
+node_modules/
+bower_components
+jspm_packages/
+
+# Native addon build output
+build/Release
+
+# TypeScript files
+typings/
+*.tsbuildinfo
+
+# Package manager caches
+.npm
+
+# Linting cache
+.eslintcache
+
+# Bundler caches
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# REPL history
+.node_repl_history
+
+# Package archives
+*.tgz
+
+# Yarn metadata
+.yarn-integrity
+
+# Environment configuration files
+.env
+.env.test
+
+# Bundler cache
+.cache
+
+# Framework build outputs
+.next
+.nuxt
+dist
+
+# Static site generator output
+.vuepress/dist
+
+# Deployment and local service directories
+.serverless/
+.fusebox/
+.dynamodb/
+
+# Editor and tooling files
+.tern-port
+
+# Uploaded media files (preserve directory structure)
+server/uploads/**/*
+!server/uploads/**/.gitkeep
+
+# Production build output
+build
