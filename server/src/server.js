@@ -178,6 +178,15 @@ server.listen(PORT, async () => {
   await setup();
   logger.info('[server] Application setup completed');
 
+  // Start background queue worker in the same process for single-instance environments
+  try {
+    const { setupAllQueueEvents } = require('./modules/queues/worker');
+    const workerStatus = setupAllQueueEvents();
+    logger.info(`[server] Background queue worker initialized: ${workerStatus}`);
+  } catch (workerErr) {
+    logger.error('[server] Failed to start background queue worker:', workerErr);
+  }
+
   // Catch-all fallback route
   app.use('/', (req, res) => {
     res.send(`StreamSphere API — ${new Date().toISOString()}`);
