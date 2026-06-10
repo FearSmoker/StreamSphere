@@ -126,6 +126,27 @@ const updateSchema = async (db) => {
           bsonType: 'array',
           description: 'array of HLS quality renditions [{label, path, bandwidth, height}]',
         },
+        contentType: {
+          enum: ['movie', 'episode'],
+          description: 'can only be movie or episode',
+        },
+        languages: {
+          bsonType: 'array',
+          items: { bsonType: 'string' },
+          description: 'must be an array of strings',
+        },
+        showId: {
+          bsonType: 'objectId',
+          description: 'must be an objectId',
+        },
+        seasonNumber: {
+          bsonType: 'int',
+          description: 'must be an integer',
+        },
+        episodeNumber: {
+          bsonType: 'int',
+          description: 'must be an integer',
+        },
       },
     },
   };

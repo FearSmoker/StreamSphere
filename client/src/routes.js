@@ -19,6 +19,8 @@ import VideosPage from './pages/VideosPage';
 import DashboardAppPage from './pages/DashboardAppPage';
 import WatchPage from './pages/WatchPage';
 import OAuthCallbackPage from './pages/OAuthCallbackPage';
+import LandingPage from './pages/LandingPage';
+import TVShowPage from './pages/TVShowPage';
 // contexts
 import { useAuth } from './contexts/AuthContext';
 
@@ -58,13 +60,15 @@ export default function Router() {
   const routes = useRoutes([
     {
       path: '/',
+      element: <LandingPage />,
+    },
+    {
       element: (
         <ProtectedRoute>
           <DashboardLayout />
         </ProtectedRoute>
       ),
       children: [
-        { element: <Navigate to="/videos" />, index: true },
         { path: 'dashboard', element: <AdminRoute><DashboardAppPage /></AdminRoute> },
         { path: 'user', element: <AdminRoute><UserPage /></AdminRoute> },
         { path: 'products', element: <ProductsPage /> },
@@ -76,6 +80,7 @@ export default function Router() {
         { path: 'video-list', element: <AdminRoute><VideoListPage /></AdminRoute> },
         { path: 'videos', element: <VideosPage /> },
         { path: 'profile', element: <ProfilePage /> },
+        { path: 'shows/:id', element: <TVShowPage /> },
       ],
     },
     {
@@ -94,9 +99,7 @@ export default function Router() {
     {
       element: <SimpleLayout />,
       children: [
-        { element: <Navigate to="/videos" />, index: true },
         { path: '404', element: <Page404 /> },
-        { path: '*', element: <Navigate to="/404" /> },
       ],
     },
     {

@@ -32,7 +32,7 @@ export default function LoginForm() {
   const [searchParams] = useSearchParams();
   const { login, loginWithGoogle } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => searchParams.get('email') || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -127,16 +127,17 @@ export default function LoginForm() {
           onClick={handleGoogleLogin}
           disabled={googleLoading}
           startIcon={<GoogleIcon />}
-          sx={{
-            borderColor: 'rgba(255,255,255,0.15)',
-            color: '#e2e8f0',
+          sx={(theme) => ({
+            borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)',
+            color: theme.palette.mode === 'dark' ? '#e2e8f0' : '#475569',
+            bgcolor: theme.palette.mode === 'dark' ? 'transparent' : '#f8fafc',
             textTransform: 'none',
             fontWeight: 500,
             '&:hover': {
-              borderColor: 'rgba(255,255,255,0.35)',
-              background: 'rgba(255,255,255,0.04)',
+              borderColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)',
+              background: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
             },
-          }}
+          })}
         >
           {googleLoading ? 'Redirecting to Google…' : 'Continue with Google'}
         </Button>

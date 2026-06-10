@@ -7,6 +7,12 @@ const schema = Joi.object().keys({
   visibility: Joi.string().min(3).max(30).required(),
   category: Joi.string().min(3).max(30).required(),
   recordingDate: Joi.date().required(),
+  contentType: Joi.string().valid('movie', 'episode').optional(),
+  languages: Joi.array().items(Joi.string()).optional(),
+  showId: Joi.string().optional(),
+  seasonNumber: Joi.number().integer().optional(),
+  episodeNumber: Joi.number().integer().optional(),
+  language: Joi.string().optional(),
 });
 
 const validate = (data) => {

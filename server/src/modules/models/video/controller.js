@@ -251,8 +251,27 @@ const setupRoutes = (app) => {
       const parsedFile = path.parse(videoFile.filename || videoFile.originalname);
       const videoLink = localFilePath;
 
+      const { ObjectId } = require('mongodb');
+
+      let parsedLanguages = ['English'];
+      if (req.body.languages) {
+        try {
+          parsedLanguages = JSON.parse(req.body.languages);
+        } catch (err) {
+          parsedLanguages = [req.body.languages];
+        }
+      }
+
+      const contentType = req.body.contentType || 'movie';
+
       const dbPayload = {
-        ...req.body,
+        title: req.body.title,
+        description: req.body.description,
+        visibility: req.body.visibility,
+        category: req.body.category,
+        language: req.body.language || 'English',
+        languages: parsedLanguages,
+        contentType,
         fileName: parsedFile.name,
         originalName: videoFile.originalname,
         recordingDate: req.body.recordingDate ? new Date(req.body.recordingDate) : new Date(),
@@ -262,6 +281,12 @@ const setupRoutes = (app) => {
         status: isLocalUpload ? VIDEO_STATUS.PENDING : VIDEO_STATUS.PUBLISHED,
       };
 
+      if (contentType === 'episode' && req.body.showId) {
+        dbPayload.showId = new ObjectId(req.body.showId);
+        dbPayload.seasonNumber = parseInt(req.body.seasonNumber, 10);
+        dbPayload.episodeNumber = parseInt(req.body.episodeNumber, 10);
+      }
+
       if (thumbnailFile) {
         const serverUrl = process.env.SERVER_URL || 'http://localhost:4000';
         dbPayload.thumbnailPath = thumbnailFile.path;
@@ -270,8 +295,27 @@ const setupRoutes = (app) => {
 
       logger.info('dbPayload', { dbPayload });
       const result = await insert(dbPayload);
+      if (result instanceof Error) {
+        logger.error('Video insert failed:', result);
+        return res.status(400).json({
+          status: 'error',
+          message: 'Video validation failed',
+          error: result.message,
+          details: result.errInfo?.details,
+        });
+      }
       logger.info('result', result);
       const videoId = result.insertedId.toString();
+
+      if (contentType === 'episode' && req.body.showId) {
+        const { addEpisode } = require('../show/service');
+        await addEpisode(
+          req.body.showId,
+          dbPayload.seasonNumber,
+          dbPayload.episodeNumber,
+          videoId
+        );
+      }
 
       if (isLocalUpload) {
         const queuePayload = {

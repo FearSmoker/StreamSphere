@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Stack, IconButton, InputAdornment, TextField, Alert } from '@mui/material';
 import { LoadingButton } from '@mui/lab';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -7,10 +7,11 @@ import Iconify from '../../../components/iconify';
 
 export default function RegisterForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { register, login } = useAuth();
 
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => searchParams.get('email') || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);

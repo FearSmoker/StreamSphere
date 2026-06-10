@@ -1,6 +1,6 @@
 import { Helmet } from 'react-helmet-async';
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 // @mui
@@ -29,7 +29,7 @@ import {
   Divider,
   ClickAwayListener,
 } from '@mui/material';
-import { PlayArrow, InfoOutlined, ArrowBackIosNew, ArrowForwardIos, Search, TrendingUp, Category } from '@mui/icons-material';
+import { PlayArrow, InfoOutlined, ArrowBackIosNew, ArrowForwardIos, Search, TrendingUp, Category, Close } from '@mui/icons-material';
 
 import { API_SERVER } from '../constants';
 import { api } from '../contexts/AuthContext';
@@ -40,6 +40,12 @@ import Moment from 'react-moment';
 
 export default function VideosPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    setSearchQuery('');
+  }, [location.key]);
+
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -47,10 +53,7 @@ export default function VideosPage() {
 
   // Autocomplete state
   const [autocompleteQuery, setAutocompleteQuery] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  const [autocompleteLoading, setAutocompleteLoading] = useState(false);
-  const autocompleteTimerRef = useRef(null);
 
   const [recommendedVideos, setRecommendedVideos] = useState([]);
   const [continueWatching, setContinueWatching] = useState([]);
@@ -59,23 +62,66 @@ export default function VideosPage() {
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const heroIntervalRef = useRef(null);
 
-  const categories = ['All', 'Education', 'Technology', 'Travel', 'Entertainment', 'Sports', 'Others'];
+  const categories = ['All', 'Action', 'Comedy', 'Drama', 'Romance', 'Horror', 'Thriller & Mystery', 'Sci-Fi & Fantasy', 'Documentary', 'Others'];
 
   useEffect(() => {
-    const fetchVideos = async () => {
+    const fetchVideosAndShows = async () => {
       setLoading(true);
       try {
-        const response = await axios.post(`${API_SERVER}/api/videos/search`, {
-          limit: 100, // Fetch up to 100 videos to organize sections
+        const [videosRes, showsRes] = await Promise.all([
+          axios.post(`${API_SERVER}/api/videos/search`, { limit: 200 }),
+          axios.get(`${API_SERVER}/api/shows/`),
+        ]);
+
+        const rawVids = videosRes.data || [];
+        const movies = rawVids
+          .filter((v) => v.contentType !== 'episode')
+          .map((v) => ({ ...v, isTVShow: false }));
+
+        const shows = (showsRes.data?.data || []).map((s) => {
+          let totalViews = 0;
+          const showCats = new Set();
+          if (s.seasons) {
+            s.seasons.forEach((season) => {
+              season.episodes?.forEach((ep) => {
+                const matched = rawVids.find((v) => v._id?.toString() === ep.videoId?.toString());
+                if (matched) {
+                  totalViews += matched.viewCount || 0;
+                  if (matched.category) showCats.add(matched.category);
+                }
+              });
+            });
+          }
+          return {
+            ...s,
+            isTVShow: true,
+            viewCount: totalViews,
+            categories: Array.from(showCats),
+          };
         });
-        setVideos(response.data || []);
+
+        const combined = [...shows, ...movies];
+        const uniqueVideos = [];
+        const seenIds = new Set();
+        const seenTitles = new Set();
+        combined.forEach((item) => {
+          const idStr = item._id?.toString();
+          const titleNorm = item.title?.trim().toLowerCase();
+          if (!seenIds.has(idStr) && !seenTitles.has(titleNorm)) {
+            uniqueVideos.push(item);
+            if (idStr) seenIds.add(idStr);
+            if (titleNorm) seenTitles.add(titleNorm);
+          }
+        });
+
+        setVideos(uniqueVideos);
       } catch (error) {
-        console.error('Error fetching videos:', error);
+        console.error('Error fetching videos and shows:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchVideos();
+    fetchVideosAndShows();
   }, []);
 
   useEffect(() => {
@@ -83,7 +129,21 @@ export default function VideosPage() {
       try {
         const response = await api.get('/api/watch-history/continue');
         if (response.data && response.data.data) {
-          setContinueWatching(response.data.data);
+          const uniqueContinue = [];
+          const seenIds = new Set();
+          const seenTitles = new Set();
+          response.data.data.forEach((item) => {
+            if (item && item.video) {
+              const idStr = item.video._id?.toString();
+              const titleNorm = item.video.title?.trim().toLowerCase();
+              if (!seenIds.has(idStr) && !seenTitles.has(titleNorm)) {
+                uniqueContinue.push(item);
+                if (idStr) seenIds.add(idStr);
+                if (titleNorm) seenTitles.add(titleNorm);
+              }
+            }
+          });
+          setContinueWatching(uniqueContinue);
         }
       } catch (error) {
         console.error('Error fetching continue watching list:', error);
@@ -95,10 +155,38 @@ export default function VideosPage() {
   useEffect(() => {
     const fetchRecommendations = async () => {
       try {
-        const response = await api.get('/api/videos/recommendations');
-        if (response.data) {
-          setRecommendedVideos(response.data);
+        const [recVideosRes, showsRes] = await Promise.all([
+          api.get('/api/videos/recommendations'),
+          api.get('/api/shows/'),
+        ]);
+
+        const recVideos = (recVideosRes.data || [])
+          .filter((v) => v.contentType !== 'episode')
+          .map((v) => ({ ...v, isTVShow: false }));
+
+        const shows = (showsRes.data?.data || []).map((s) => ({ ...s, isTVShow: true }));
+
+        const combinedRecs = [];
+        const maxLen = Math.max(recVideos.length, shows.length);
+        for (let i = 0; i < maxLen; i++) {
+          if (i < shows.length) combinedRecs.push(shows[i]);
+          if (i < recVideos.length) combinedRecs.push(recVideos[i]);
         }
+
+        const uniqueRecs = [];
+        const seenIds = new Set();
+        const seenTitles = new Set();
+        combinedRecs.forEach((item) => {
+          const idStr = item._id?.toString();
+          const titleNorm = item.title?.trim().toLowerCase();
+          if (!seenIds.has(idStr) && !seenTitles.has(titleNorm)) {
+            uniqueRecs.push(item);
+            if (idStr) seenIds.add(idStr);
+            if (titleNorm) seenTitles.add(titleNorm);
+          }
+        });
+
+        setRecommendedVideos(uniqueRecs.slice(0, 10));
       } catch (error) {
         console.error('Error fetching recommendations:', error);
       }
@@ -106,31 +194,26 @@ export default function VideosPage() {
     fetchRecommendations();
   }, []);
 
-  // Autocomplete: debounced fetch
-  const fetchSuggestions = useCallback(async (q) => {
-    if (!q || q.trim().length < 2) {
-      setSuggestions([]);
-      setSuggestionsOpen(false);
-      return;
-    }
-    setAutocompleteLoading(true);
-    try {
-      const response = await axios.get(`${API_SERVER}/api/videos/autocomplete?q=${encodeURIComponent(q.trim())}`);
-      setSuggestions(response.data || []);
-      setSuggestionsOpen(true);
-    } catch {
-      setSuggestions([]);
-    } finally {
-      setAutocompleteLoading(false);
-    }
-  }, []);
+  // Autocomplete: local suggestion filter
+  const suggestions = useMemo(() => {
+    const q = autocompleteQuery.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return videos
+      .filter((item) => 
+        item.title?.toLowerCase().includes(q) || 
+        item.description?.toLowerCase().includes(q) ||
+        (item.isTVShow 
+          ? (item.categories || []).some(cat => cat?.toLowerCase().includes(q))
+          : item.category?.toLowerCase().includes(q)
+        )
+      )
+      .slice(0, 8);
+  }, [videos, autocompleteQuery]);
 
   const handleSearchInputChange = (e) => {
     const val = e.target.value;
     setAutocompleteQuery(val);
-    // Clear running debounce
-    if (autocompleteTimerRef.current) clearTimeout(autocompleteTimerRef.current);
-    autocompleteTimerRef.current = setTimeout(() => fetchSuggestions(val), 300);
+    setSuggestionsOpen(val.trim().length >= 2);
   };
 
   const handleSearchSubmit = (e) => {
@@ -140,9 +223,13 @@ export default function VideosPage() {
     }
   };
 
-  const handleSuggestionClick = (videoId) => {
+  const handleSuggestionClick = (item) => {
     setSuggestionsOpen(false);
-    navigate(`/videos/${videoId}`);
+    if (item.isTVShow) {
+      navigate(`/shows/${item._id}`);
+    } else {
+      navigate(`/videos/${item._id}`);
+    }
   };
 
   // Filter & Sort Video Lists
@@ -153,7 +240,7 @@ export default function VideosPage() {
   }, [videos]);
 
   const heroVideos = useMemo(() => {
-    // Top 4 trending videos for the hero carousel
+    // Top 4 trending videos/shows for the hero carousel
     return trendingVideos.slice(0, 4);
   }, [trendingVideos]);
 
@@ -183,8 +270,23 @@ export default function VideosPage() {
   // Filtered List based on Category and Search
   const filteredVideos = useMemo(() => {
     return videos.filter((video) => {
-      const matchesCategory = selectedCategory === 'All' || video.category?.toLowerCase() === selectedCategory.toLowerCase();
-      const matchesSearch = !searchQuery.trim() || video.title?.toLowerCase().includes(searchQuery.toLowerCase()) || video.description?.toLowerCase().includes(searchQuery.toLowerCase());
+      let matchesCategory = false;
+      if (selectedCategory === 'All') {
+        matchesCategory = true;
+      } else if (video.isTVShow) {
+        matchesCategory = (video.categories || []).some(
+          (cat) => cat?.toLowerCase() === selectedCategory.toLowerCase()
+        );
+      } else {
+        matchesCategory = video.category?.toLowerCase() === selectedCategory.toLowerCase();
+      }
+      const matchesSearch = !searchQuery.trim() || 
+        video.title?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        video.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (video.isTVShow 
+          ? (video.categories || []).some(cat => cat?.toLowerCase().includes(searchQuery.toLowerCase()))
+          : video.category?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
       return matchesCategory && matchesSearch;
     });
   }, [videos, selectedCategory, searchQuery]);
@@ -223,28 +325,59 @@ export default function VideosPage() {
           {/* Autocomplete Search Bar */}
           <ClickAwayListener onClickAway={() => setSuggestionsOpen(false)}>
             <Box sx={{ position: 'relative', width: { xs: '100%', md: 420 } }}>
-              <TextField
-                id="video-search-input"
-                placeholder="Search titles, genres..."
-                value={autocompleteQuery}
-                onChange={handleSearchInputChange}
-                onKeyDown={handleSearchSubmit}
-                autoComplete="off"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search sx={{ color: autocompleteLoading ? 'primary.main' : 'text.secondary' }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  width: '100%',
-                  '& .MuiOutlinedInput-root': {
-                    bgcolor: 'background.paper',
+              <Stack direction="row" spacing={1}>
+                <TextField
+                  id="video-search-input"
+                  placeholder="Search titles, genres..."
+                  value={autocompleteQuery}
+                  onChange={handleSearchInputChange}
+                  onKeyDown={handleSearchSubmit}
+                  autoComplete="off"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search sx={{ color: 'text.secondary' }} />
+                      </InputAdornment>
+                    ),
+                    endAdornment: autocompleteQuery ? (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="clear search text"
+                          onClick={() => {
+                            setAutocompleteQuery('');
+                            setSearchQuery('');
+                            setSuggestionsOpen(false);
+                          }}
+                          edge="end"
+                          size="small"
+                        >
+                          <Close sx={{ fontSize: 20 }} />
+                        </IconButton>
+                      </InputAdornment>
+                    ) : null,
+                  }}
+                  sx={{
+                    flexGrow: 1,
+                    '& .MuiOutlinedInput-root': {
+                      bgcolor: 'background.paper',
+                      borderRadius: 2,
+                    },
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleSearchSubmit}
+                  sx={{
+                    px: 3,
                     borderRadius: 2,
-                  },
-                }}
-              />
+                    fontWeight: 'fontWeightBold',
+                    textTransform: 'none',
+                  }}
+                >
+                  Search
+                </Button>
+              </Stack>
 
               {/* Suggestions Dropdown */}
               {suggestionsOpen && suggestions.length > 0 && (
@@ -341,27 +474,29 @@ export default function VideosPage() {
         </Stack>
 
         {/* Category Filters */}
-        <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 3, mb: 2, '&::-webkit-scrollbar': { display: 'none' } }}>
-          {categories.map((cat) => (
-            <Chip
-              key={cat}
-              label={cat}
-              clickable
-              color={selectedCategory === cat ? 'primary' : 'default'}
-              onClick={() => setSelectedCategory(cat)}
-              sx={{
-                fontSize: '0.9rem',
-                fontWeight: 'fontWeightMedium',
-                px: 1,
-                py: 2,
-                borderRadius: '8px',
-                border: '1px solid',
-                borderColor: selectedCategory === cat ? 'primary.main' : 'rgba(255, 255, 255, 0.1)',
-                bgcolor: selectedCategory === cat ? 'primary.main' : 'background.paper',
-              }}
-            />
-          ))}
-        </Stack>
+        {searchQuery.trim() === '' && (
+          <Stack direction="row" spacing={1} sx={{ overflowX: 'auto', pb: 3, mb: 2, '&::-webkit-scrollbar': { display: 'none' } }}>
+            {categories.map((cat) => (
+              <Chip
+                key={cat}
+                label={cat}
+                clickable
+                color={selectedCategory === cat ? 'primary' : 'default'}
+                onClick={() => setSelectedCategory(cat)}
+                sx={{
+                  fontSize: '0.9rem',
+                  fontWeight: 'fontWeightMedium',
+                  px: 1,
+                  py: 2,
+                  borderRadius: '8px',
+                  border: '1px solid',
+                  borderColor: selectedCategory === cat ? 'primary.main' : 'rgba(255, 255, 255, 0.1)',
+                  bgcolor: selectedCategory === cat ? 'primary.main' : 'background.paper',
+                }}
+              />
+            ))}
+          </Stack>
+        )}
 
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 12 }}>
@@ -370,8 +505,10 @@ export default function VideosPage() {
         ) : searchQuery.trim() || selectedCategory !== 'All' ? (
           // Search / Filter Grid View
           <Box>
-            <Typography variant="h5" sx={{ mb: 3, fontWeight: 'fontWeightBold' }}>
-              Results ({filteredVideos.length})
+            <Typography variant="h4" sx={{ mb: 3, fontWeight: 'fontWeightBold' }}>
+              {searchQuery.trim()
+                ? `Showing you the search results for "${searchQuery}"`
+                : `Results (${filteredVideos.length})`}
             </Typography>
             {filteredVideos.length > 0 ? (
               <Grid container spacing={3}>
@@ -401,7 +538,7 @@ export default function VideosPage() {
                   height: { xs: 320, md: 480 },
                   borderRadius: 3,
                   overflow: 'hidden',
-                  backgroundImage: `url(${getThumbnailUrl(activeHero.thumbnailUrl, '/assets/images/covers/cover_default.jpg')})`,
+                  backgroundImage: `url(${getThumbnailUrl(activeHero.coverUrl || activeHero.thumbnailUrl, '/assets/images/covers/cover_default.jpg')})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   boxShadow: 'inset 0 0 80px rgba(0,0,0,0.95)',
@@ -473,7 +610,7 @@ export default function VideosPage() {
                 >
                   <Stack direction="row" spacing={1} alignItems="center">
                     <Chip label="TRENDING" size="small" color="primary" sx={{ fontWeight: 'fontWeightBold' }} />
-                    <Chip label={activeHero.category} size="small" variant="outlined" sx={{ color: '#fff', borderColor: '#fff' }} />
+                    <Chip label={activeHero.isTVShow ? 'TV SHOW' : activeHero.category} size="small" variant="outlined" sx={{ color: '#fff', borderColor: '#fff' }} />
                   </Stack>
 
                   <Typography
@@ -513,7 +650,7 @@ export default function VideosPage() {
                       color="primary"
                       size="large"
                       startIcon={<PlayArrow />}
-                      onClick={() => navigate(`/videos/${activeHero._id}`)}
+                      onClick={() => navigate(activeHero.isTVShow ? `/shows/${activeHero._id}` : `/videos/${activeHero._id}`)}
                       sx={{ borderRadius: '8px', px: 4, py: 1.5, fontWeight: 'fontWeightBold' }}
                     >
                       Play Now
@@ -522,7 +659,7 @@ export default function VideosPage() {
                       variant="outlined"
                       size="large"
                       startIcon={<InfoOutlined />}
-                      onClick={() => navigate(`/videos/${activeHero._id}`)}
+                      onClick={() => navigate(activeHero.isTVShow ? `/shows/${activeHero._id}` : `/videos/${activeHero._id}`)}
                       sx={{
                         borderRadius: '8px',
                         color: 'common.white',
@@ -541,11 +678,11 @@ export default function VideosPage() {
             {/* Featured Channels Section (StreamSphere Channels Viewers Row) */}
             <Grid container spacing={3} sx={{ mt: 1, mb: 2 }}>
               {[
-                { name: 'StreamSphere Originals', icon: '🎬', desc: 'Exclusives & Originals', category: 'Entertainment' },
-                { name: 'Blockbuster Entertainment', icon: '🍿', desc: 'Movies & Series', category: 'Entertainment' },
-                { name: 'Documentaries & Nature', icon: '🌍', desc: 'Explorations & Science', category: 'Education' },
-                { name: 'Sports Hub', icon: '⚽', desc: 'Live Matches & Highlights', category: 'Sports' },
-                { name: 'Tech & Innovation', icon: '🧠', desc: 'Latest in Technology', category: 'Technology' },
+                { name: 'Action Hits', icon: '💥', desc: 'High-Octane Action', category: 'Action' },
+                { name: 'Comedy Club', icon: '😂', desc: 'Laugh Out Loud', category: 'Comedy' },
+                { name: 'Drama Special', icon: '🎭', desc: 'Intense Dramas', category: 'Drama' },
+                { name: 'Sci-Fi & Fantasy', icon: '🚀', desc: 'Sci-Fi & Fantasy Hits', category: 'Sci-Fi & Fantasy' },
+                { name: 'Documentaries', icon: '🌍', desc: 'Real World Stories', category: 'Documentary' },
               ].map((channel, idx) => (
                 <Grid item xs={6} sm={4} md={2.4} key={idx}>
                   <Card
@@ -758,11 +895,24 @@ export default function VideosPage() {
 
 function VideoItemCard({ video, formatDuration }) {
   const navigate = useNavigate();
-  const { title, thumbnailUrl, viewCount, duration, category, recordingDate, _id: id } = video;
+  const { title, thumbnailUrl, viewCount, duration, category, recordingDate, _id: id, isTVShow, seasons, launchYear } = video;
+
+  const totalEpisodes = useMemo(() => {
+    if (!seasons) return 0;
+    return seasons.reduce((sum, s) => sum + (s.episodes?.length || 0), 0);
+  }, [seasons]);
+
+  const handleCardClick = () => {
+    if (isTVShow) {
+      navigate(`/shows/${id}`);
+    } else {
+      navigate(`/videos/${id}`);
+    }
+  };
 
   return (
     <Card
-      onClick={() => navigate(`/videos/${id}`)}
+      onClick={handleCardClick}
       sx={{
         bgcolor: '#141414',
         borderRadius: '10px',
@@ -786,30 +936,28 @@ function VideoItemCard({ video, formatDuration }) {
           alt={title}
           sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
         />
-        {/* Floating Duration Chip */}
-        {duration && (
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 8,
-              right: 8,
-              bgcolor: 'rgba(0,0,0,0.75)',
-              color: 'common.white',
-              px: 1,
-              py: 0.25,
-              borderRadius: '4px',
-              fontSize: '0.75rem',
-              fontWeight: 'fontWeightBold',
-            }}
-          >
-            {formatDuration(duration)}
-          </Box>
-        )}
+        {/* Floating Duration/Info Chip */}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 8,
+            right: 8,
+            bgcolor: 'rgba(0,0,0,0.75)',
+            color: 'common.white',
+            px: 1,
+            py: 0.25,
+            borderRadius: '4px',
+            fontSize: '0.75rem',
+            fontWeight: 'fontWeightBold',
+          }}
+        >
+          {isTVShow ? `${seasons?.length || 0} Seasons` : formatDuration(duration)}
+        </Box>
       </Box>
 
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 'fontWeightBold', textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
-          {category || 'Others'}
+          {isTVShow ? 'TV Show' : (category || 'Others')}
         </Typography>
 
         <Typography variant="subtitle1" sx={{ fontWeight: 'fontWeightBold', color: 'text.primary', mb: 1, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -817,9 +965,11 @@ function VideoItemCard({ video, formatDuration }) {
         </Typography>
 
         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ color: 'text.secondary', fontSize: '0.8rem' }}>
-          <Typography variant="caption">{viewCount || 0} views</Typography>
           <Typography variant="caption">
-            <Moment fromNow>{recordingDate}</Moment>
+            {isTVShow ? `${totalEpisodes} Episodes` : `${viewCount || 0} views`}
+          </Typography>
+          <Typography variant="caption">
+            {isTVShow ? launchYear : <Moment fromNow>{recordingDate}</Moment>}
           </Typography>
         </Stack>
       </CardContent>

@@ -41,9 +41,15 @@ export default function VideoCard({ video }) {
     status,
     recordingDate,
     _id: id,
+    isTVShow,
+    seasons,
+    launchYear,
   } = video;
 
   const videoDuration = duration ?? 0;
+  const totalEpisodes = seasons
+    ? seasons.reduce((acc, s) => acc + (s.episodes?.length || 0), 0)
+    : 0;
 
   return (
     <Card>
@@ -86,20 +92,26 @@ export default function VideoCard({ video }) {
 
       <Stack spacing={2} sx={{ p: 3 }}>
         <Stack direction='row' alignItems='center' justifyContent='space-between'>
-            <Link to={`/videos/${id}`} color='inherit' style={{ textDecoration: 'none', color: 'inherit' }}>
+            <Link to={isTVShow ? `/shows/${id}` : `/videos/${id}`} color='inherit' style={{ textDecoration: 'none', color: 'inherit' }}>
               <Typography variant='subtitle2' noWrap>
                 {name}
               </Typography>
             </Link>
             <Typography variant='subtitle1'>
-                <Moment format='DD/MM/yyyy'>{recordingDate}</Moment>
+              {isTVShow ? launchYear : <Moment format='DD/MM/yyyy'>{recordingDate}</Moment>}
             </Typography>
           </Stack>
           
           <Stack direction='row' alignItems='center' justifyContent='space-between'>
-            <Typography variant='subtitle1'>{viewCount} views</Typography>
             <Typography variant='subtitle1'>
-              <Moment utc format='HH:mm:ss'>{videoDuration*1000}</Moment>
+              {isTVShow ? `${totalEpisodes} Episodes` : `${viewCount} views`}
+            </Typography>
+            <Typography variant='subtitle1'>
+              {isTVShow ? (
+                `${seasons?.length || 0} Seasons`
+              ) : (
+                <Moment utc format='HH:mm:ss'>{videoDuration*1000}</Moment>
+              )}
             </Typography>
           </Stack>
       </Stack>

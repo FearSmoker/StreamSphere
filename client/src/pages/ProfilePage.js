@@ -52,7 +52,7 @@ export default function ProfilePage() {
     }
   }, [user]);
 
-  // Fetch watchlist videos from backend
+  // Fetch watchlist videos and shows from backend
   useEffect(() => {
     const fetchWatchlist = async () => {
       if (!user?.watchlist || user.watchlist.length === 0) {
@@ -61,13 +61,23 @@ export default function ProfilePage() {
       }
       setVideosLoading(true);
       try {
-        const res = await api.post('/api/videos/search', {});
-        if (res.data) {
-          const filtered = res.data.filter((vid) => user.watchlist.includes(vid._id));
-          setWatchlistVideos(filtered);
-        }
+        const [videosRes, showsRes] = await Promise.all([
+          api.post('/api/videos/search', {}),
+          api.get('/api/shows/'),
+        ]);
+
+        const watchlistIds = user.watchlist;
+        const filteredVideos = (videosRes.data || [])
+          .filter((vid) => watchlistIds.includes(vid._id))
+          .map((v) => ({ ...v, isTVShow: false }));
+
+        const filteredShows = (showsRes.data?.data || [])
+          .filter((show) => watchlistIds.includes(show._id))
+          .map((s) => ({ ...s, isTVShow: true }));
+
+        setWatchlistVideos([...filteredShows, ...filteredVideos]);
       } catch (err) {
-        console.error('Error fetching watchlist videos:', err);
+        console.error('Error fetching watchlist items:', err);
       } finally {
         setVideosLoading(false);
       }

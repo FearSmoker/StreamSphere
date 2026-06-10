@@ -122,6 +122,12 @@ const search = async (searchObject) => {
     recordingDate: 1,
     thumbnailUrl: 1,
     hlsPath: 1,
+    contentType: 1,
+    showId: 1,
+    seasonNumber: 1,
+    episodeNumber: 1,
+    languages: 1,
+    language: 1,
   };
 
   const sort = searchObject.sortKey
@@ -394,6 +400,42 @@ const setReady = async (id, { hlsPath, thumbnailUrl, thumbnailPath, processedPat
       { _id: new ObjectId(id) },
       { $set: $setFields }
     );
+
+    // Update show cover and thumbnail if it was set to default
+    try {
+      const { MongoManager } = require('../../db/mongo');
+      const videoDoc = await MongoManager.Instance.collection('videos').findOne({ _id: new ObjectId(id) });
+      if (videoDoc && videoDoc.contentType === 'episode' && videoDoc.showId) {
+        const showCol = MongoManager.Instance.collection('shows');
+        const show = await showCol.findOne({ _id: new ObjectId(videoDoc.showId) });
+        if (show) {
+          const hasDefaultThumb = !show.thumbnailUrl || show.thumbnailUrl.includes('default_thumbnail.png');
+          const hasDefaultCover = !show.coverUrl || show.coverUrl.includes('default_cover.jpg');
+          if (hasDefaultThumb || hasDefaultCover) {
+            const $setShowFields = {};
+            if (hasDefaultThumb && thumbnailUrl) {
+              $setShowFields.thumbnailUrl = thumbnailUrl;
+            }
+            if (hasDefaultCover && thumbnailUrl) {
+              $setShowFields.coverUrl = thumbnailUrl;
+            }
+            if (Object.keys($setShowFields).length > 0) {
+              await showCol.updateOne(
+                { _id: new ObjectId(videoDoc.showId) },
+                { $set: $setShowFields }
+              );
+              // Invalidate show cache
+              await cacheDel(`show:detail:${videoDoc.showId.toString()}`);
+              await cacheDel('show:feed:all');
+              logger.info(`Updated TV Show ${videoDoc.showId.toString()} auto-generated images from episode`);
+            }
+          }
+        }
+      }
+    } catch (showErr) {
+      logger.error('Failed to update TV Show auto-generated images:', showErr);
+    }
+
     // Video is now visible in feeds — purge stale list + detail caches
     await invalidateFeedCache();
     await invalidateVideoCache(id);

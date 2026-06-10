@@ -87,12 +87,22 @@ const getSystemAnalytics = async () => {
       const watchHistoryCol = MongoManager.Instance.collection('watchHistory');
       dailyActiveUsers = await watchHistoryCol.aggregate([
         { $match: { lastWatchedAt: { $gte: sevenDaysAgo } } },
+        { $project: { userId: 1, date: '$lastWatchedAt' } },
+        {
+          $unionWith: {
+            coll: 'userActivity',
+            pipeline: [
+              { $match: { timestamp: { $gte: sevenDaysAgo } } },
+              { $project: { userId: 1, date: '$timestamp' } }
+            ]
+          }
+        },
         {
           $group: {
             _id: {
-              year:  { $year:  { date: '$lastWatchedAt', timezone: 'Asia/Kolkata' } },
-              month: { $month: { date: '$lastWatchedAt', timezone: 'Asia/Kolkata' } },
-              day:   { $dayOfMonth: { date: '$lastWatchedAt', timezone: 'Asia/Kolkata' } },
+              year:  { $year:  { date: '$date', timezone: 'Asia/Kolkata' } },
+              month: { $month: { date: '$date', timezone: 'Asia/Kolkata' } },
+              day:   { $dayOfMonth: { date: '$date', timezone: 'Asia/Kolkata' } },
             },
             uniqueUsers: { $addToSet: '$userId' },
           },

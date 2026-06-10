@@ -165,6 +165,9 @@ const setup = async () => {
 
   const { setup: setupNotificationModule } = require('./modules/models/notification/controller');
   setupNotificationModule(app);
+
+  const { setup: setupShowModule } = require('./modules/models/show/controller');
+  setupShowModule(app);
 };
 
 // Server Boot

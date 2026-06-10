@@ -124,4 +124,5 @@ module.exports = {
   User:         createCollectionObject('users'),
   WatchHistory: createCollectionObject('watchHistory'),
   Notification: createCollectionObject('notifications'),
+  Show:         createCollectionObject('shows'),
 };

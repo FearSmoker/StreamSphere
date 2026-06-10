@@ -61,8 +61,25 @@ export default function VideoPlayerPage() {
         try {
           const response = await axios.get(`${API_SERVER}/api/videos/recommendations?category=${encodeURIComponent(video.category)}`);
           if (response.data) {
-            // Filter out the current video from recommendations
-            setRecommendedVideos(response.data.filter(v => v._id !== video._id));
+            // Filter out current video, matches by title, and list duplicates
+            const filtered = response.data.filter((v) => {
+              const isSameId = v._id?.toString() === video._id?.toString();
+              const isSameTitle = v.title?.trim().toLowerCase() === video.title?.trim().toLowerCase();
+              return !isSameId && !isSameTitle;
+            });
+            const uniqueRecs = [];
+            const seenIds = new Set();
+            const seenTitles = new Set();
+            filtered.forEach((item) => {
+              const idStr = item._id?.toString();
+              const titleNorm = item.title?.trim().toLowerCase();
+              if (!seenIds.has(idStr) && !seenTitles.has(titleNorm)) {
+                uniqueRecs.push(item);
+                if (idStr) seenIds.add(idStr);
+                if (titleNorm) seenTitles.add(titleNorm);
+              }
+            });
+            setRecommendedVideos(uniqueRecs);
           }
         } catch (error) {
           console.error('Error fetching recommendations:', error);

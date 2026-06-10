@@ -68,7 +68,7 @@ export default function VideoEditPage() {
     thumbnailUrl: 'test',
     language: 'Bangla',
     recordingDate: new Date(),
-    category: 'Education',
+    category: 'Others',
 
   });
 
@@ -248,11 +248,14 @@ export default function VideoEditPage() {
                     error={Boolean(formik.errors.category)}
                     helperText={formik.errors.category}
                   >
-                    <MenuItem value={'Education'}>Education</MenuItem>
-                    <MenuItem value={'Technology'}>Technology</MenuItem>
-                    <MenuItem value={'Travel'}>Travel</MenuItem>
-                    <MenuItem value={'Entertainment'}>Entertainment</MenuItem>
-                    <MenuItem value={'Sports'}>Sports</MenuItem>
+                    <MenuItem value={'Action'}>Action</MenuItem>
+                    <MenuItem value={'Comedy'}>Comedy</MenuItem>
+                    <MenuItem value={'Drama'}>Drama</MenuItem>
+                    <MenuItem value={'Romance'}>Romance</MenuItem>
+                    <MenuItem value={'Horror'}>Horror</MenuItem>
+                    <MenuItem value={'Thriller & Mystery'}>Thriller & Mystery</MenuItem>
+                    <MenuItem value={'Sci-Fi & Fantasy'}>Sci-Fi & Fantasy</MenuItem>
+                    <MenuItem value={'Documentary'}>Documentary</MenuItem>
                     <MenuItem value={'Others'}>Others</MenuItem>
                   </Select>
                 </FormControl>

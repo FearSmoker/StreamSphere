@@ -98,11 +98,14 @@ export default function DashboardAppPage() {
   }];
 
   const categoryColorMap = {
-    Education: theme.palette.error.main,
-    Travel: theme.palette.info.main,
-    Entertainment: theme.palette.warning.main,
-    Technology: theme.palette.primary.main,
-    Sports: theme.palette.success.main,
+    Action: theme.palette.error.main,
+    Comedy: theme.palette.warning.main,
+    Drama: theme.palette.primary.main,
+    Romance: '#ff4081',
+    Horror: '#9c27b0',
+    'Thriller & Mystery': '#795548',
+    'Sci-Fi & Fantasy': '#00bcd4',
+    Documentary: theme.palette.success.main,
     Others: theme.palette.grey[500],
     Unknown: theme.palette.grey[500],
   };

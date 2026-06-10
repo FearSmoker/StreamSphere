@@ -9,7 +9,7 @@ import { bgBlur } from '../../../utils/cssStyles';
 // components
 import Iconify from '../../../components/iconify';
 //
-import Searchbar from './Searchbar';
+
 import AccountPopover from './AccountPopover';
 import LanguagePopover from './LanguagePopover';
 import NotificationsPopover from './NotificationsPopover';
@@ -82,7 +82,6 @@ export default function Header({ onOpenNav, desktopSidebarOpen, onOpenDesktopNav
           </IconButton>
         )}
 
-        <Searchbar />
         <Box sx={{ flexGrow: 1 }} />
 
         <Stack
