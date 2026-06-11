@@ -44,7 +44,8 @@ export default function AccountPopover() {
   const handleLogout = () => {
     setOpen(null);
     logout();
-    navigate('/login', { replace: true });
+    // Redirect to landing page
+    navigate('/', { replace: true });
   };
 
   const displayName = user?.username || 'User';
