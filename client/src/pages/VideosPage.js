@@ -29,14 +29,24 @@ import {
   Divider,
   ClickAwayListener,
 } from '@mui/material';
-import { PlayArrow, InfoOutlined, ArrowBackIosNew, ArrowForwardIos, Search, TrendingUp, Category, Close } from '@mui/icons-material';
+import ReactPlayer from 'react-player';
+import { PlayArrow, InfoOutlined, ArrowBackIosNew, ArrowForwardIos, Search, TrendingUp, Category, Close, VolumeUp, VolumeOff } from '@mui/icons-material';
 
-import { API_SERVER } from '../constants';
+import { API_SERVER, VIDEO_SERVER } from '../constants';
 import { api } from '../contexts/AuthContext';
 import { getThumbnailUrl } from '../utils/resolveAsset';
 import Moment from 'react-moment';
 
-// ----------------------------------------------------------------------
+const getRelativeHlsPath = (hlsPath) => {
+  if (!hlsPath) return '';
+  const normalized = hlsPath.replace(/\\/g, '/');
+  const searchStr = 'uploads/hls/';
+  const index = normalized.indexOf(searchStr);
+  if (index !== -1) {
+    return normalized.substring(index + searchStr.length);
+  }
+  return normalized.split('/').pop();
+};
 
 export default function VideosPage() {
   const navigate = useNavigate();
@@ -62,6 +72,28 @@ export default function VideosPage() {
   const [activeHeroIndex, setActiveHeroIndex] = useState(0);
   const heroIntervalRef = useRef(null);
 
+  const [scrollOpacity, setScrollOpacity] = useState(1);
+  const [showCover, setShowCover] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const offset = window.scrollY;
+      const opacity = Math.max(0, 1 - offset / 400);
+      setScrollOpacity(opacity);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    setShowCover(true);
+    const timer = setTimeout(() => {
+      setShowCover(false);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [activeHeroIndex]);
+
   const categories = ['All', 'Action', 'Comedy', 'Drama', 'Romance', 'Horror', 'Thriller & Mystery', 'Sci-Fi & Fantasy', 'Documentary', 'Others'];
 
   useEffect(() => {
@@ -81,6 +113,7 @@ export default function VideosPage() {
         const shows = (showsRes.data?.data || []).map((s) => {
           let totalViews = 0;
           const showCats = new Set();
+          let firstEpisodeVideo = null;
           if (s.seasons) {
             s.seasons.forEach((season) => {
               season.episodes?.forEach((ep) => {
@@ -88,6 +121,7 @@ export default function VideosPage() {
                 if (matched) {
                   totalViews += matched.viewCount || 0;
                   if (matched.category) showCats.add(matched.category);
+                  if (!firstEpisodeVideo) firstEpisodeVideo = matched;
                 }
               });
             });
@@ -97,6 +131,7 @@ export default function VideosPage() {
             isTVShow: true,
             viewCount: totalViews,
             categories: Array.from(showCats),
+            firstEpisodeVideo,
           };
         });
 
@@ -305,6 +340,16 @@ export default function VideosPage() {
 
   const activeHero = heroVideos[activeHeroIndex];
 
+  const glimpseUrl = useMemo(() => {
+    if (!activeHero) return '';
+    const videoObj = activeHero.isTVShow ? activeHero.firstEpisodeVideo : activeHero;
+    if (!videoObj || !videoObj.hlsPath) return '';
+    if (videoObj.hlsPath.startsWith('http://') || videoObj.hlsPath.startsWith('https://')) {
+      return videoObj.hlsPath;
+    }
+    return `${VIDEO_SERVER}/${getRelativeHlsPath(videoObj.hlsPath)}`;
+  }, [activeHero]);
+
   return (
     <>
       <Helmet>
@@ -510,10 +555,10 @@ export default function VideosPage() {
                 ? `Showing you the search results for "${searchQuery}"`
                 : `Results (${filteredVideos.length})`}
             </Typography>
-            {filteredVideos.length > 0 ? (
+             {filteredVideos.length > 0 ? (
               <Grid container spacing={3}>
                 {filteredVideos.map((video) => (
-                  <Grid item xs={12} sm={6} md={4} lg={3} key={video._id}>
+                  <Grid item xs={6} sm={4} md={3} key={video._id}>
                     <VideoItemCard video={video} formatDuration={formatDuration} />
                   </Grid>
                 ))}
@@ -538,9 +583,8 @@ export default function VideosPage() {
                   height: { xs: 320, md: 480 },
                   borderRadius: 3,
                   overflow: 'hidden',
-                  backgroundImage: `url(${getThumbnailUrl(activeHero.coverUrl || activeHero.thumbnailUrl, '/assets/images/covers/cover_default.jpg')})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
+                  opacity: scrollOpacity,
+                  transition: 'opacity 0.15s ease-out',
                   boxShadow: 'inset 0 0 80px rgba(0,0,0,0.95)',
                   '&::before': {
                     content: '""',
@@ -561,6 +605,60 @@ export default function VideosPage() {
                   },
                 }}
               >
+                {!showCover && glimpseUrl && (
+                  <ReactPlayer
+                    url={glimpseUrl}
+                    playing={!showCover}
+                    muted={isMuted}
+                    width="100%"
+                    height="100%"
+                    loop
+                    playsinline
+                    config={{
+                      file: {
+                        forceHLS: true,
+                        attributes: {
+                          style: { objectFit: 'cover', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }
+                        }
+                      }
+                    }}
+                    style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 0 }}
+                  />
+                )}
+
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundImage: `url(${getThumbnailUrl(activeHero.coverUrl || activeHero.thumbnailUrl, '/assets/images/covers/cover_default.jpg')})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    transition: 'opacity 0.8s ease-in-out',
+                    opacity: showCover ? 1 : 0,
+                    zIndex: 0,
+                  }}
+                />
+
+                {!showCover && glimpseUrl && (
+                  <IconButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMuted(!isMuted);
+                    }}
+                    sx={{
+                      position: 'absolute',
+                      bottom: { xs: 24, md: 48 },
+                      right: { xs: 16, md: 48 },
+                      zIndex: 10,
+                      color: 'common.white',
+                      bgcolor: 'rgba(0,0,0,0.5)',
+                      '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
+                    }}
+                  >
+                    {isMuted ? <VolumeOff /> : <VolumeUp />}
+                  </IconButton>
+                )}
+
                 {/* Carousel Controls */}
                 {heroVideos.length > 1 && (
                   <>
@@ -767,6 +865,12 @@ export default function VideosPage() {
                       ? (item.progressSeconds / item.durationSeconds) * 100
                       : 0;
 
+                    const remainingSeconds = Math.max(0, item.durationSeconds - item.progressSeconds);
+                    const mins = Math.ceil(remainingSeconds / 60);
+                    const timeLeftText = mins >= 60
+                      ? `${Math.floor(mins / 60)}h${mins % 60 > 0 ? ` ${mins % 60}m` : ''} left`
+                      : `${mins}m left`;
+
                     return (
                       <Box key={item._id} sx={{ minWidth: { xs: 200, sm: 260 }, maxWidth: { xs: 200, sm: 260 } }}>
                         <Card
@@ -812,7 +916,7 @@ export default function VideosPage() {
                               {video.title}
                             </Typography>
                             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              {Math.round(progressRatio)}% Watched
+                              {timeLeftText}
                             </Typography>
                           </CardContent>
                         </Card>
@@ -846,7 +950,7 @@ export default function VideosPage() {
                   }}
                 >
                   {trendingVideos.map((video) => (
-                    <Box key={video._id} sx={{ minWidth: { xs: 200, sm: 260 }, maxWidth: { xs: 200, sm: 260 } }}>
+                    <Box key={video._id} sx={{ minWidth: { xs: 120, sm: 160 }, maxWidth: { xs: 120, sm: 160 } }}>
                       <VideoItemCard video={video} formatDuration={formatDuration} />
                     </Box>
                   ))}
@@ -877,7 +981,7 @@ export default function VideosPage() {
                   }}
                 >
                   {recommendedVideos.map((video) => (
-                    <Box key={video._id} sx={{ minWidth: { xs: 200, sm: 260 }, maxWidth: { xs: 200, sm: 260 } }}>
+                    <Box key={video._id} sx={{ minWidth: { xs: 120, sm: 160 }, maxWidth: { xs: 120, sm: 160 } }}>
                       <VideoItemCard video={video} formatDuration={formatDuration} />
                     </Box>
                   ))}
@@ -895,7 +999,7 @@ export default function VideosPage() {
 
 function VideoItemCard({ video, formatDuration }) {
   const navigate = useNavigate();
-  const { title, thumbnailUrl, viewCount, duration, category, recordingDate, _id: id, isTVShow, seasons, launchYear } = video;
+  const { title, thumbnailUrl, viewCount, category, recordingDate, _id: id, isTVShow, seasons, launchYear } = video;
 
   const totalEpisodes = useMemo(() => {
     if (!seasons) return 0;
@@ -929,7 +1033,7 @@ function VideoItemCard({ video, formatDuration }) {
         },
       }}
     >
-      <Box sx={{ position: 'relative', pt: '56.25%', width: '100%', overflow: 'hidden' }}>
+      <Box sx={{ position: 'relative', pt: '150%', width: '100%', overflow: 'hidden' }}>
         <CardMedia
           component="img"
           image={getThumbnailUrl(thumbnailUrl, '/assets/images/covers/cover_default.jpg')}
@@ -937,22 +1041,24 @@ function VideoItemCard({ video, formatDuration }) {
           sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
         />
         {/* Floating Duration/Info Chip */}
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: 8,
-            right: 8,
-            bgcolor: 'rgba(0,0,0,0.75)',
-            color: 'common.white',
-            px: 1,
-            py: 0.25,
-            borderRadius: '4px',
-            fontSize: '0.75rem',
-            fontWeight: 'fontWeightBold',
-          }}
-        >
-          {isTVShow ? `${seasons?.length || 0} Seasons` : formatDuration(duration)}
-        </Box>
+        {isTVShow && (
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 8,
+              right: 8,
+              bgcolor: 'rgba(0,0,0,0.75)',
+              color: 'common.white',
+              px: 1,
+              py: 0.25,
+              borderRadius: '4px',
+              fontSize: '0.75rem',
+              fontWeight: 'fontWeightBold',
+            }}
+          >
+            {`${seasons?.length || 0} Seasons`}
+          </Box>
+        )}
       </Box>
 
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>

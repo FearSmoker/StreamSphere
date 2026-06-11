@@ -15,7 +15,7 @@ export default function OAuthCallbackPage() {
     const error = searchParams.get('error');
 
     if (error) {
-      // OAuth failed — go back to login with an error flag
+      // OAuth failed — goes back to login with an error flag
       navigate('/login?error=oauth_failed', { replace: true });
       return;
     }
@@ -41,7 +41,7 @@ export default function OAuthCallbackPage() {
         background: 'linear-gradient(135deg, #0a0a0f 0%, #12121f 100%)',
       }}
     >
-      <CircularProgress size={48} sx={{ color: '#7c3aed' }} />
+      <CircularProgress size={48} sx={{ color: '#E50914' }} />
       <Typography variant="h6" sx={{ color: '#e2e8f0' }}>
         Signing you in with Google…
       </Typography>

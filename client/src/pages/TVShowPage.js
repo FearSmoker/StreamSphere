@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
@@ -23,9 +23,10 @@ import {
   MenuItem,
   Divider,
 } from '@mui/material';
-import { PlayArrow, Bookmark, BookmarkBorder, ArrowBack } from '@mui/icons-material';
+import ReactPlayer from 'react-player';
+import { PlayArrow, Bookmark, BookmarkBorder, ArrowBack, VolumeUp, VolumeOff, Replay } from '@mui/icons-material';
 
-import { API_SERVER } from '../constants';
+import { API_SERVER, VIDEO_SERVER } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { getThumbnailUrl } from '../utils/resolveAsset';
 
@@ -47,6 +48,100 @@ export default function TVShowPage() {
   // Loading/saving watchlist states
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [episodeWatchlistLoading, setEpisodeWatchlistLoading] = useState({});
+
+  const [showCover, setShowCover] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
+  const [currentGlimpseIdx, setCurrentGlimpseIdx] = useState(0);
+  const [glimpseFinished, setGlimpseFinished] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setShowCover(true);
+    setCurrentGlimpseIdx(0);
+    setGlimpseFinished(false);
+    timerRef.current = setTimeout(() => {
+      setShowCover(false);
+    }, 1500);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [id]);
+
+  const handleWatchAgain = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setShowCover(true);
+    setGlimpseFinished(false);
+    setCurrentGlimpseIdx(0);
+    timerRef.current = setTimeout(() => {
+      setShowCover(false);
+    }, 1500);
+  };
+
+  const episodeUrls = useMemo(() => {
+    if (!show || !show.seasons) return [];
+    const urls = [];
+    show.seasons.forEach((season) => {
+      season.episodes?.forEach((ep) => {
+        if (ep.video && ep.video.hlsPath) {
+          const path = ep.video.hlsPath;
+          let url;
+          if (path.startsWith('http://') || path.startsWith('https://')) {
+            url = path;
+          } else {
+            const getRelativeHlsPath = (hlsPath) => {
+              if (!hlsPath) return '';
+              const normalized = hlsPath.replace(/\\/g, '/');
+              const searchStr = 'uploads/hls/';
+              const index = normalized.indexOf(searchStr);
+              if (index !== -1) {
+                return normalized.substring(index + searchStr.length);
+              }
+              return normalized.split('/').pop();
+            };
+            url = `${VIDEO_SERVER}/${getRelativeHlsPath(path)}`;
+          }
+          urls.push({ url, duration: ep.video.duration || 0 });
+        }
+      });
+    });
+    return urls;
+  }, [show]);
+
+  const currentEpisodeObj = useMemo(() => {
+    if (episodeUrls.length === 0) return null;
+    if (currentGlimpseIdx >= episodeUrls.length) return null;
+    return episodeUrls[currentGlimpseIdx];
+  }, [episodeUrls, currentGlimpseIdx]);
+
+  const glimpseUrl = useMemo(() => {
+    return currentEpisodeObj?.url || '';
+  }, [currentEpisodeObj]);
+
+  const glimpseDurationLimit = useMemo(() => {
+    if (!currentEpisodeObj) return 12;
+    const dur = currentEpisodeObj.duration || 0;
+    return dur < 60 ? 6 : 12;
+  }, [currentEpisodeObj]);
+
+  const handleGlimpseTimeout = () => {
+    if (currentGlimpseIdx < episodeUrls.length - 1) {
+      setCurrentGlimpseIdx((prev) => prev + 1);
+    } else {
+      setGlimpseFinished(true);
+      setShowCover(true);
+    }
+  };
+
+  const handleGlimpseEnded = () => {
+    handleGlimpseTimeout();
+  };
+
+  const handlePlayerProgress = (progress) => {
+    if (progress.playedSeconds >= glimpseDurationLimit) {
+      handleGlimpseTimeout();
+    }
+  };
 
   useEffect(() => {
     const fetchShowDetails = async () => {
@@ -258,17 +353,103 @@ export default function TVShowPage() {
           position: 'relative',
           width: '100%',
           height: { xs: 240, md: 440 },
-          backgroundImage: `url(${getThumbnailUrl(show.coverUrl, '/assets/images/covers/cover_default.jpg')})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          overflow: 'hidden',
+          boxShadow: 'inset 0 0 80px rgba(0,0,0,0.95)',
           '&::before': {
             content: '""',
             position: 'absolute',
             inset: 0,
             background: 'linear-gradient(to bottom, rgba(8,8,8,0.2) 0%, rgba(8,8,8,0.95) 100%)',
+            zIndex: 1,
           },
         }}
       >
+        {!showCover && !glimpseFinished && glimpseUrl && (
+          <ReactPlayer
+            url={glimpseUrl}
+            playing={!showCover && !glimpseFinished}
+            muted={isMuted}
+            width="100%"
+            height="100%"
+            playsinline
+            onEnded={handleGlimpseEnded}
+            onProgress={handlePlayerProgress}
+            config={{
+              file: {
+                forceHLS: true,
+                attributes: {
+                  style: { objectFit: 'cover', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }
+                }
+              }
+            }}
+            style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 0 }}
+          />
+        )}
+
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: `url(${getThumbnailUrl(show.coverUrl, '/assets/images/covers/cover_default.jpg')})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            transition: 'opacity 0.8s ease-in-out',
+            opacity: showCover ? 1 : 0,
+            zIndex: 0,
+          }}
+        />
+
+        {!showCover && !glimpseFinished && glimpseUrl && (
+          <IconButton
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMuted(!isMuted);
+            }}
+            sx={{
+              position: 'absolute',
+              bottom: 24,
+              right: 24,
+              zIndex: 10,
+              color: 'common.white',
+              bgcolor: 'rgba(0,0,0,0.5)',
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
+            }}
+          >
+            {isMuted ? <VolumeOff /> : <VolumeUp />}
+          </IconButton>
+        )}
+
+        {glimpseFinished && (
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleWatchAgain();
+            }}
+            endIcon={<Replay />}
+            sx={{
+              position: 'absolute',
+              bottom: 24,
+              right: 24,
+              zIndex: 10,
+              color: 'common.white',
+              bgcolor: 'rgba(0,0,0,0.5)',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '4px',
+              px: 2,
+              py: 1,
+              fontWeight: 'fontWeightBold',
+              fontSize: '0.85rem',
+              letterSpacing: '1px',
+              '&:hover': {
+                bgcolor: 'rgba(255,255,255,0.2)',
+                borderColor: 'common.white',
+              },
+            }}
+          >
+            WATCH AGAIN
+          </Button>
+        )}
+
         <IconButton
           onClick={() => navigate('/videos')}
           sx={{
@@ -289,13 +470,13 @@ export default function TVShowPage() {
       <Container sx={{ mt: -8, position: 'relative', zIndex: 5, pb: 8 }}>
         <Grid container spacing={4}>
           {/* Left Side: Thumbnail cover image */}
-          <Grid item xs={12} md={4}>
-            <Card sx={{ borderRadius: 2, overflow: 'hidden', boxShadow: '0 12px 30px rgba(0,0,0,0.7)', bgcolor: 'background.paper' }}>
+          <Grid item xs={12} md={4} sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Card sx={{ borderRadius: 2, overflow: 'hidden', boxShadow: '0 12px 30px rgba(0,0,0,0.7)', bgcolor: 'background.paper', width: { xs: 180, md: 220 }, height: { xs: 270, md: 330 } }}>
               <CardMedia
                 component="img"
                 image={getThumbnailUrl(show.thumbnailUrl, '/assets/images/covers/cover_default.jpg')}
                 alt={show.title}
-                sx={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover' }}
+                sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </Card>
           </Grid>
@@ -502,7 +683,7 @@ export default function TVShowPage() {
                   </Typography>
                   <Grid container spacing={3}>
                     {recommendations.map((rec) => (
-                      <Grid item xs={12} sm={6} md={4} key={rec._id}>
+                      <Grid item xs={6} sm={4} md={3} key={rec._id}>
                         <Card
                           sx={{
                             borderRadius: 1.5,
@@ -515,10 +696,10 @@ export default function TVShowPage() {
                           }}
                           onClick={() => navigate(rec.isTVShow ? `/shows/${rec._id}` : `/videos/${rec._id}`)}
                         >
-                          <Box sx={{ position: 'relative', paddingTop: '56.25%' }}>
+                          <Box sx={{ position: 'relative', paddingTop: '150%' }}>
                             <CardMedia
                               component="img"
-                              image={getThumbnailUrl(rec.coverUrl || rec.thumbnailUrl, '/assets/images/covers/cover_default.jpg')}
+                              image={getThumbnailUrl(rec.thumbnailUrl || rec.coverUrl, '/assets/images/covers/cover_default.jpg')}
                               alt={rec.title}
                               sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                             />
@@ -540,7 +721,10 @@ export default function TVShowPage() {
                               {rec.title}
                             </Typography>
                             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              {rec.isTVShow ? `${rec.seasons?.length || 0} seasons` : `${Math.floor((rec.duration || 0) / 60)} min`} • {rec.launchYear || (rec.recordingDate ? new Date(rec.recordingDate).getFullYear() : '')}
+                              {rec.isTVShow 
+                                ? `${rec.seasons?.length || 0} seasons • ${rec.launchYear}`
+                                : (rec.launchYear || (rec.recordingDate ? new Date(rec.recordingDate).getFullYear() : ''))
+                              }
                             </Typography>
                           </Box>
                         </Card>

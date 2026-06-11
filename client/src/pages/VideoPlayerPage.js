@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
@@ -18,9 +18,10 @@ import {
   Chip,
   IconButton,
 } from '@mui/material';
-import { PlayArrow, Bookmark, BookmarkBorder, Edit, ArrowBack } from '@mui/icons-material';
+import ReactPlayer from 'react-player';
+import { PlayArrow, Bookmark, BookmarkBorder, Edit, ArrowBack, VolumeUp, VolumeOff, Replay } from '@mui/icons-material';
 
-import { API_SERVER } from '../constants';
+import { API_SERVER, VIDEO_SERVER } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { getThumbnailUrl } from '../utils/resolveAsset';
 import Moment from 'react-moment';
@@ -37,6 +38,67 @@ export default function VideoPlayerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const [showCover, setShowCover] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
+  const [glimpseFinished, setGlimpseFinished] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setShowCover(true);
+    setGlimpseFinished(false);
+    timerRef.current = setTimeout(() => {
+      setShowCover(false);
+    }, 1500);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [id]);
+
+  const handleWatchAgain = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setShowCover(true);
+    setGlimpseFinished(false);
+    timerRef.current = setTimeout(() => {
+      setShowCover(false);
+    }, 1500);
+  };
+
+  const glimpseUrl = useMemo(() => {
+    if (!video || !video.hlsPath) return '';
+    const getRelativeHlsPath = (hlsPath) => {
+      if (!hlsPath) return '';
+      const normalized = hlsPath.replace(/\\/g, '/');
+      const searchStr = 'uploads/hls/';
+      const index = normalized.indexOf(searchStr);
+      if (index !== -1) {
+        return normalized.substring(index + searchStr.length);
+      }
+      return normalized.split('/').pop();
+    };
+    if (video.hlsPath.startsWith('http://') || video.hlsPath.startsWith('https://')) {
+      return video.hlsPath;
+    }
+    return `${VIDEO_SERVER}/${getRelativeHlsPath(video.hlsPath)}`;
+  }, [video]);
+
+  const glimpseDurationLimit = useMemo(() => {
+    if (!video) return 12;
+    const dur = video.duration || 0;
+    return dur < 60 ? 6 : 12;
+  }, [video]);
+
+  const handleGlimpseEnded = () => {
+    setGlimpseFinished(true);
+    setShowCover(true);
+  };
+
+  const handlePlayerProgress = (progress) => {
+    if (progress.playedSeconds >= glimpseDurationLimit) {
+      setGlimpseFinished(true);
+      setShowCover(true);
+    }
+  };
 
   useEffect(() => {
     const fetchVideoDetails = async () => {
@@ -164,17 +226,103 @@ export default function VideoPlayerPage() {
           position: 'relative',
           width: '100%',
           height: { xs: 240, md: 400 },
-          backgroundImage: `url(${getThumbnailUrl(video.thumbnailUrl, '/assets/images/covers/cover_default.jpg')})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          overflow: 'hidden',
+          boxShadow: 'inset 0 0 80px rgba(0,0,0,0.95)',
           '&::before': {
             content: '""',
             position: 'absolute',
             inset: 0,
             background: 'linear-gradient(to bottom, rgba(8,8,8,0.2) 0%, rgba(8,8,8,0.95) 100%)',
+            zIndex: 1,
           },
         }}
       >
+        {!showCover && !glimpseFinished && glimpseUrl && (
+          <ReactPlayer
+            url={glimpseUrl}
+            playing={!showCover && !glimpseFinished}
+            muted={isMuted}
+            width="100%"
+            height="100%"
+            playsinline
+            onEnded={handleGlimpseEnded}
+            onProgress={handlePlayerProgress}
+            config={{
+              file: {
+                forceHLS: true,
+                attributes: {
+                  style: { objectFit: 'cover', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }
+                }
+              }
+            }}
+            style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 0 }}
+          />
+        )}
+
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: `url(${getThumbnailUrl(video.thumbnailUrl, '/assets/images/covers/cover_default.jpg')})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            transition: 'opacity 0.8s ease-in-out',
+            opacity: showCover ? 1 : 0,
+            zIndex: 0,
+          }}
+        />
+
+        {!showCover && !glimpseFinished && glimpseUrl && (
+          <IconButton
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMuted(!isMuted);
+            }}
+            sx={{
+              position: 'absolute',
+              bottom: 24,
+              right: 24,
+              zIndex: 10,
+              color: 'common.white',
+              bgcolor: 'rgba(0,0,0,0.5)',
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
+            }}
+          >
+            {isMuted ? <VolumeOff /> : <VolumeUp />}
+          </IconButton>
+        )}
+
+        {glimpseFinished && (
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleWatchAgain();
+            }}
+            endIcon={<Replay />}
+            sx={{
+              position: 'absolute',
+              bottom: 24,
+              right: 24,
+              zIndex: 10,
+              color: 'common.white',
+              bgcolor: 'rgba(0,0,0,0.5)',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '4px',
+              px: 2,
+              py: 1,
+              fontWeight: 'fontWeightBold',
+              fontSize: '0.85rem',
+              letterSpacing: '1px',
+              '&:hover': {
+                bgcolor: 'rgba(255,255,255,0.2)',
+                borderColor: 'common.white',
+              },
+            }}
+          >
+            WATCH AGAIN
+          </Button>
+        )}
+
         <IconButton
           onClick={() => navigate('/videos')}
           sx={{
@@ -184,6 +332,7 @@ export default function VideoPlayerPage() {
             color: 'common.white',
             bgcolor: 'rgba(0,0,0,0.5)',
             '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
+            zIndex: 10,
           }}
         >
           <ArrowBack />
@@ -322,7 +471,7 @@ export default function VideoPlayerPage() {
                     }}
                   >
                     {recommendedVideos.map((recVideo) => (
-                      <Box key={recVideo._id} sx={{ minWidth: { xs: 200, sm: 260 }, maxWidth: { xs: 200, sm: 260 } }}>
+                      <Box key={recVideo._id} sx={{ minWidth: { xs: 120, sm: 160 }, maxWidth: { xs: 120, sm: 160 } }}>
                         <Card
                           sx={{
                             borderRadius: 2,
@@ -335,7 +484,7 @@ export default function VideoPlayerPage() {
                           }}
                           onClick={() => navigate(`/videos/${recVideo._id}`)}
                         >
-                          <Box sx={{ position: 'relative', paddingTop: '56.25%' }}>
+                          <Box sx={{ position: 'relative', paddingTop: '150%' }}>
                             <CardMedia
                               component="img"
                               image={getThumbnailUrl(recVideo.thumbnailUrl, '/assets/images/covers/cover_default.jpg')}
@@ -344,11 +493,6 @@ export default function VideoPlayerPage() {
                             />
                             <Box className="play-icon" sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.2s' }}>
                               <PlayArrow sx={{ fontSize: 48, color: 'primary.main' }} />
-                            </Box>
-                            <Box sx={{ position: 'absolute', bottom: 8, right: 8, bgcolor: 'rgba(0,0,0,0.7)', px: 1, py: 0.2, borderRadius: 1 }}>
-                              <Typography variant="caption" sx={{ color: 'white', fontWeight: 'bold' }}>
-                                {formatDuration(recVideo.duration)}
-                              </Typography>
                             </Box>
                           </Box>
                           <Box sx={{ p: 2 }}>

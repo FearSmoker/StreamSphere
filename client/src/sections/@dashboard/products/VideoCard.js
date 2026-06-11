@@ -37,7 +37,6 @@ export default function VideoCard({ video }) {
     title: name,
     thumbnailUrl: cover,
     viewCount,
-    duration,
     status,
     recordingDate,
     _id: id,
@@ -46,14 +45,13 @@ export default function VideoCard({ video }) {
     launchYear,
   } = video;
 
-  const videoDuration = duration ?? 0;
   const totalEpisodes = seasons
     ? seasons.reduce((acc, s) => acc + (s.episodes?.length || 0), 0)
     : 0;
 
   return (
     <Card>
-      <Box sx={{ pt: '100%', position: 'relative' }}>
+      <Box sx={{ pt: '150%', position: 'relative' }}>
         {status && isAdmin && (
           <Label
             variant='filled'
@@ -106,13 +104,11 @@ export default function VideoCard({ video }) {
             <Typography variant='subtitle1'>
               {isTVShow ? `${totalEpisodes} Episodes` : `${viewCount} views`}
             </Typography>
-            <Typography variant='subtitle1'>
-              {isTVShow ? (
-                `${seasons?.length || 0} Seasons`
-              ) : (
-                <Moment utc format='HH:mm:ss'>{videoDuration*1000}</Moment>
-              )}
-            </Typography>
+            {isTVShow && (
+              <Typography variant='subtitle1'>
+                {`${seasons?.length || 0} Seasons`}
+              </Typography>
+            )}
           </Stack>
       </Stack>
     </Card>

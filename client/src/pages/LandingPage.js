@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import axios from 'axios';
 // @mui
@@ -13,6 +13,7 @@ import {
   Container,
   Stack,
   TextField,
+  Link,
   InputAdornment,
   Menu,
   MenuItem,
@@ -68,7 +69,9 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const theme = useTheme();
   const { themeMode, toggleThemeMode } = useThemeMode();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const hasToken = !!localStorage.getItem('token');
+  const isUserLoggedIn = isAuthenticated || (authLoading && hasToken);
 
   // Search and Category state for filtering showcase cards
   const [searchVal, setSearchVal] = useState('');
@@ -255,17 +258,6 @@ export default function LandingPage() {
     navigate('/login');
   };
 
-  const formatDuration = (seconds) => {
-    if (!seconds) return '0:00';
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hrs > 0) {
-      return `${hrs}h ${mins}m`;
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   // Filtered actual videos based on search input and categories dropdown selection
   const filteredMockVideos = useMemo(() => {
     let rawFiltered = videos;
@@ -372,18 +364,20 @@ export default function LandingPage() {
               <Stack direction="row" alignItems="center" spacing={3}>
                 <Stack direction="row" alignItems="center" spacing={1}>
                   <Logo sx={{ width: 35, height: 35 }} />
-                  <Typography
-                    variant="h5"
-                    sx={{
-                      fontWeight: 800,
-                      color: 'primary.main',
-                      letterSpacing: -0.5,
-                      fontFamily: 'Public Sans, sans-serif',
-                      display: { xs: 'none', sm: 'block' },
-                    }}
-                  >
-                    StreamSphere
-                  </Typography>
+                  <Link component={RouterLink} to="/" sx={{ textDecoration: 'none', color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+                    <Typography
+                      variant="h5"
+                      sx={{
+                        fontWeight: 800,
+                        color: 'primary.main',
+                        letterSpacing: -0.5,
+                        fontFamily: 'Public Sans, sans-serif',
+                        display: { xs: 'none', sm: 'block' },
+                      }}
+                    >
+                      StreamSphere
+                    </Typography>
+                  </Link>
                 </Stack>
 
                 {/* Navbar Buttons (Amazon layout: Home, Movies, TV Shows adjacent to logo) */}
@@ -613,7 +607,7 @@ export default function LandingPage() {
                 {/* Sign In / Watch Now Button */}
                 <Button
                   variant="contained"
-                  onClick={() => navigate(isAuthenticated ? '/videos' : '/login')}
+                  onClick={() => navigate(isUserLoggedIn ? '/videos' : '/login')}
                   sx={{
                     bgcolor: 'primary.main',
                     color: '#fff',
@@ -628,7 +622,7 @@ export default function LandingPage() {
                     },
                   }}
                 >
-                  {isAuthenticated ? 'Watch Now' : 'Sign In'}
+                  {isUserLoggedIn ? 'Watch Now' : 'Sign In'}
                 </Button>
               </Stack>
             </Toolbar>
@@ -696,95 +690,97 @@ export default function LandingPage() {
             </Typography>
 
             {/* Email Get Started Bar */}
-            <Box sx={{ mt: 5, mb: 4 }}>
-              <Typography
-                variant="h6"
-                sx={{
-                  color: themeMode === 'dark' ? '#fff' : '#161C24',
-                  fontWeight: 600,
-                  mb: 2,
-                }}
-              >
-                Ready to watch? Enter your email to create or restart your membership.
-              </Typography>
-              <Box
-                component="form"
-                onSubmit={handleGetStartedSubmit}
-                sx={{
-                  display: 'flex',
-                  flexDirection: { xs: 'column', sm: 'row' },
-                  justifyContent: 'center',
-                  alignItems: 'flex-start',
-                  maxWidth: 650,
-                  mx: 'auto',
-                  gap: { xs: 1.5, sm: 0 },
-                  width: '100%',
-                }}
-              >
-                <TextField
-                  fullWidth
-                  placeholder="Email address"
-                  value={getStartedEmail}
-                  onChange={(e) => {
-                    setGetStartedEmail(e.target.value);
-                    setEmailError('');
-                  }}
-                  error={!!emailError}
-                  helperText={emailError}
-                  FormHelperTextProps={{
-                    sx: {
-                      color: 'error.main',
-                      fontSize: '0.85rem',
-                      mt: 0.5,
-                      textAlign: 'left',
-                      fontWeight: 600,
-                    },
-                  }}
+            {!isUserLoggedIn && (
+              <Box sx={{ mt: 5, mb: 4 }}>
+                <Typography
+                  variant="h6"
                   sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: { xs: 1, sm: '4px 0 0 4px' },
-                      bgcolor: themeMode === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)',
-                      color: 'text.primary',
-                      height: 56,
-                      '& fieldset': {
-                        borderColor: themeMode === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)',
-                        borderWidth: 1.5,
-                      },
-                      '&:hover fieldset': {
-                        borderColor: 'primary.main',
-                      },
-                      '&.Mui-focused fieldset': {
-                        borderColor: 'primary.main',
-                      },
-                    },
-                  }}
-                />
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={emailCheckLoading}
-                  endIcon={<ChevronRight sx={{ fontSize: 24 }} />}
-                  sx={{
-                    bgcolor: 'primary.main',
-                    color: '#fff',
-                    fontWeight: 800,
-                    fontSize: '1.15rem',
-                    height: 56,
-                    px: 4,
-                    minWidth: 180,
-                    whiteSpace: 'nowrap',
-                    borderRadius: { xs: 1, sm: '0 4px 4px 0' },
-                    textTransform: 'none',
-                    boxShadow: 'none',
-                    '&:hover': {
-                      bgcolor: 'primary.dark',
-                    },
+                    color: themeMode === 'dark' ? '#fff' : '#161C24',
+                    fontWeight: 600,
+                    mb: 2,
                   }}
                 >
-                  {emailCheckLoading ? 'Checking...' : 'Get Started'}
-                </Button>
+                  Ready to watch? Enter your email to create or restart your membership.
+                </Typography>
+                <Box
+                  component="form"
+                  onSubmit={handleGetStartedSubmit}
+                  sx={{
+                    display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    justifyContent: 'center',
+                    alignItems: 'flex-start',
+                    maxWidth: 650,
+                    mx: 'auto',
+                    gap: { xs: 1.5, sm: 0 },
+                    width: '100%',
+                  }}
+                >
+                  <TextField
+                    fullWidth
+                    placeholder="Email address"
+                    value={getStartedEmail}
+                    onChange={(e) => {
+                      setGetStartedEmail(e.target.value);
+                      setEmailError('');
+                    }}
+                    error={!!emailError}
+                    helperText={emailError}
+                    FormHelperTextProps={{
+                      sx: {
+                        color: 'error.main',
+                        fontSize: '0.85rem',
+                        mt: 0.5,
+                        textAlign: 'left',
+                        fontWeight: 600,
+                      },
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: { xs: 1, sm: '4px 0 0 4px' },
+                        bgcolor: themeMode === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.9)',
+                        color: 'text.primary',
+                        height: 56,
+                        '& fieldset': {
+                          borderColor: themeMode === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)',
+                          borderWidth: 1.5,
+                        },
+                        '&:hover fieldset': {
+                          borderColor: 'primary.main',
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: 'primary.main',
+                        },
+                      },
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={emailCheckLoading}
+                    endIcon={<ChevronRight sx={{ fontSize: 24 }} />}
+                    sx={{
+                      bgcolor: 'primary.main',
+                      color: '#fff',
+                      fontWeight: 800,
+                      fontSize: '1.15rem',
+                      height: 56,
+                      px: 4,
+                      minWidth: 180,
+                      whiteSpace: 'nowrap',
+                      borderRadius: { xs: 1, sm: '0 4px 4px 0' },
+                      textTransform: 'none',
+                      boxShadow: 'none',
+                      '&:hover': {
+                        bgcolor: 'primary.dark',
+                      },
+                    }}
+                  >
+                    {emailCheckLoading ? 'Checking...' : 'Get Started'}
+                  </Button>
+                </Box>
               </Box>
-            </Box>
+            )}
 
             <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 2 }}>
               <Button
@@ -1113,7 +1109,7 @@ export default function LandingPage() {
             ) : (
               <Grid container spacing={4}>
                 {paginatedMockVideos.map((video) => (
-                  <Grid item xs={12} sm={6} md={4} key={video._id}>
+                  <Grid item xs={6} sm={4} md={3} key={video._id}>
                     <Card
                       onClick={() => {
                         if (isAuthenticated) {
@@ -1139,28 +1135,30 @@ export default function LandingPage() {
                         },
                       }}
                     >
-                      <Box sx={{ position: 'relative' }}>
+                      <Box sx={{ position: 'relative', pt: '150%', overflow: 'hidden' }}>
                         <CardMedia
                           component="img"
-                          height="180"
                           image={getThumbnailUrl(video.thumbnailUrl, '/assets/images/covers/cover_default.jpg')}
                           alt={video.title}
+                          sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                         />
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            bottom: 8,
-                            right: 8,
-                            bgcolor: 'rgba(0,0,0,0.8)',
-                            color: '#fff',
-                            px: 1,
-                            borderRadius: 0.5,
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {video.isTVShow ? `${video.seasons?.length || 0} Seasons` : formatDuration(video.duration)}
-                        </Box>
+                        {video.isTVShow && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              bottom: 8,
+                              right: 8,
+                              bgcolor: 'rgba(0,0,0,0.8)',
+                              color: '#fff',
+                              px: 1,
+                              borderRadius: 0.5,
+                              fontSize: '0.75rem',
+                              fontWeight: 700,
+                            }}
+                          >
+                            {`${video.seasons?.length || 0} Seasons`}
+                          </Box>
+                        )}
                       </Box>
                       <CardContent sx={{ p: 3 }}>
                         <Typography
@@ -1242,7 +1240,7 @@ export default function LandingPage() {
         </Box>
 
         {/* CTA banner */}
-        {!isAuthenticated && (
+        {!isUserLoggedIn && (
           <Box sx={{ bgcolor: 'primary.main', color: '#fff', py: 8, textAlign: 'center' }}>
             <Container maxWidth="md">
               <Typography variant="h3" sx={{ fontWeight: 900, mb: 2 }}>
@@ -1289,17 +1287,19 @@ export default function LandingPage() {
               {/* Logo in center */}
               <Stack direction="row" alignItems="center" spacing={1}>
                 <Logo sx={{ width: 40, height: 40 }} />
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 800,
-                    color: 'primary.main',
-                    letterSpacing: -0.5,
-                    fontFamily: 'Public Sans, sans-serif',
-                  }}
-                >
-                  StreamSphere
-                </Typography>
+                <Link component={RouterLink} to="/" sx={{ textDecoration: 'none', color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 800,
+                      color: 'primary.main',
+                      letterSpacing: -0.5,
+                      fontFamily: 'Public Sans, sans-serif',
+                    }}
+                  >
+                    StreamSphere
+                  </Typography>
+                </Link>
               </Stack>
 
               {/* Copyright message */}
