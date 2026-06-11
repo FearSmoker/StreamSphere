@@ -49,6 +49,22 @@ const setupRoutes = (app) => {
     if (video instanceof Error) {
       return res.status(400).json(JSON.parse(video.message));
     }
+    if (video && video.hlsPath && video.hlsPath.includes('cloudinary.com') && (!video.qualities || video.qualities.length === 0)) {
+      const height = video.resolution?.height || 1080;
+      const targetRenditions = [
+        { label: '360p',  height: 360,  name: 'hls_360p',  bandwidth: 800000 },
+        { label: '480p',  height: 480,  name: 'hls_480p',  bandwidth: 1400000 },
+        { label: '720p',  height: 720,  name: 'hls_720p',  bandwidth: 2500000 },
+        { label: '1080p', height: 1080, name: 'hls_1080p', bandwidth: 5000000 },
+      ].filter(q => q.height <= height);
+
+      video.qualities = targetRenditions.map(q => ({
+        label: q.label,
+        path: video.hlsPath.replace('/sp_full_hd/', `/sp_full_hd/${q.name}/`),
+        bandwidth: q.bandwidth,
+        height: q.height,
+      }));
+    }
     res.send(video);
   });
 
@@ -109,6 +125,23 @@ const setupRoutes = (app) => {
     if (!video || video instanceof Error) {
       return res.status(404).json({ status: 'error', message: 'Video not found' });
     }
+    let qualities = video.qualities || null;
+    if (video.hlsPath && video.hlsPath.includes('cloudinary.com') && (!qualities || qualities.length === 0)) {
+      const height = video.resolution?.height || 1080;
+      const targetRenditions = [
+        { label: '360p',  height: 360,  name: 'hls_360p',  bandwidth: 800000 },
+        { label: '480p',  height: 480,  name: 'hls_480p',  bandwidth: 1400000 },
+        { label: '720p',  height: 720,  name: 'hls_720p',  bandwidth: 2500000 },
+        { label: '1080p', height: 1080, name: 'hls_1080p', bandwidth: 5000000 },
+      ].filter(q => q.height <= height);
+
+      qualities = targetRenditions.map(q => ({
+        label: q.label,
+        path: video.hlsPath.replace('/sp_full_hd/', `/sp_full_hd/${q.name}/`),
+        bandwidth: q.bandwidth,
+        height: q.height,
+      }));
+    }
     return res.json({
       id:              video._id,
       status:          video.status,
@@ -116,7 +149,7 @@ const setupRoutes = (app) => {
       thumbnailUrl:    video.thumbnailUrl   || null,
       duration:        video.duration       || null,
       resolution:      video.resolution     || null,
-      qualities:       video.qualities      || null,
+      qualities:       qualities,
       processingError: video.processingError || null,
     });
   });

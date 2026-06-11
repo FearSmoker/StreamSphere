@@ -123,7 +123,7 @@ export default function VideoPlayerPage() {
         try {
           const response = await axios.get(`${API_SERVER}/api/videos/recommendations?category=${encodeURIComponent(video.category)}`);
           if (response.data) {
-            // Filter out current video, matches by title, and list duplicates
+            // Exclude current video and duplicates
             const filtered = response.data.filter((v) => {
               const isSameId = v._id?.toString() === video._id?.toString();
               const isSameTitle = v.title?.trim().toLowerCase() === video.title?.trim().toLowerCase();

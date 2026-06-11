@@ -374,9 +374,32 @@ export default function WatchPage() {
   };
 
   const handleReady = () => {
-    if (playerRef.current && initialStartSeconds > 0 && !hasSeeked) {
-      playerRef.current.seekTo(initialStartSeconds, 'seconds');
-      setHasSeeked(true);
+    if (playerRef.current) {
+      if (initialStartSeconds > 0 && !hasSeeked) {
+        playerRef.current.seekTo(initialStartSeconds, 'seconds');
+        setHasSeeked(true);
+      }
+
+      // Load HLS levels
+      const hls = playerRef.current.getInternalPlayer('hls');
+      if (hls && hls.levels && hls.levels.length > 0) {
+        const mappedQualities = hls.levels.map((level, index) => ({
+          label: `${level.height}p`,
+          height: level.height,
+          index: index,
+        }));
+        
+        const uniqueQualities = [];
+        const seenHeights = new Set();
+        mappedQualities.forEach(q => {
+          if (!seenHeights.has(q.height) && q.height > 0) {
+            seenHeights.add(q.height);
+            uniqueQualities.push(q);
+          }
+        });
+        
+        setQualities(uniqueQualities);
+      }
     }
   };
 
@@ -397,8 +420,23 @@ export default function WatchPage() {
 
   const handleSelectQuality = (qualityLabel) => {
     setSelectedQuality(qualityLabel);
+    
+    // Use HLS level switching
+    const hls = playerRef.current?.getInternalPlayer('hls');
+    if (hls && qualities.length > 0) {
+      if (qualityLabel === 'Auto') {
+        hls.currentLevel = -1;
+      } else {
+        const qObj = qualities.find(q => q.label === qualityLabel);
+        if (qObj && qObj.index !== undefined) {
+          hls.currentLevel = qObj.index;
+        }
+      }
+      return;
+    }
+
+    // Fallback for native players
     if (qualityLabel === 'Auto' || !video) {
-      // Get auto stream url
       if (video && video.hlsPath) {
         if (video.hlsPath.startsWith('http://') || video.hlsPath.startsWith('https://')) {
           setStreamUrl(video.hlsPath);

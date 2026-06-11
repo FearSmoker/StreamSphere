@@ -159,7 +159,7 @@ export default function LandingPage() {
   };
 
   const handleCategorySelect = (category) => {
-    setContentTypeFilter('All'); // Show all content matching the category (movies or TV shows)
+    setContentTypeFilter('All'); // Show all content
     setSelectedCategory(category);
     handleCloseMenu();
     // Scroll to videos showcase section
@@ -258,11 +258,11 @@ export default function LandingPage() {
     navigate('/login');
   };
 
-  // Filtered actual videos based on search input and categories dropdown selection
+  // Filtered showcase videos
   const filteredMockVideos = useMemo(() => {
     let rawFiltered = videos;
 
-    // Apply sorting if logged in (to get top 25 trending content)
+    // Sort by views if logged in
     if (isAuthenticated) {
       rawFiltered = [...rawFiltered].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
     }
@@ -302,10 +302,7 @@ export default function LandingPage() {
       return rawFiltered.slice(0, 25);
     }
 
-    // Limit based on selection type:
-    // If 'tvshow', limit to 4.
-    // If 'movie', limit to 4.
-    // If 'All', limit to 5.
+    // Limit outputs
     if (contentTypeFilter === 'movie') {
       return rawFiltered.slice(0, 4);
     }

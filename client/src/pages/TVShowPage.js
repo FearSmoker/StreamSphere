@@ -173,7 +173,7 @@ export default function TVShowPage() {
           axios.post(`${API_SERVER}/api/videos/search`, { limit: 100 }),
         ]);
 
-        // Filter out the current show and shows with the same title (robust comparison)
+        // Exclude current show
         const otherShows = (showsRes.data || [])
           .filter((s) => {
             const isSameId = s._id?.toString() === id?.toString();
@@ -188,7 +188,7 @@ export default function TVShowPage() {
 
         let recommendedList = [...otherShows];
 
-        // If no other TV shows, recommend similar movies based on keywords (title, description, categories)
+        // Keyword recommendations fallback
         if (otherShows.length === 0) {
           const showCategories = [];
           if (show.seasons) {
@@ -207,7 +207,7 @@ export default function TVShowPage() {
           const stopwords = new Set(['the', 'a', 'an', 'and', 'from', 'for', 'of', 'in', 'on', 'to', 'is', 'it', 'its', 'all', 'about', 'with', 'by', 'at', 'this', 'that']);
           
           const keywords = textToAnalyze
-            .split(/[\s,.\-!?:;()]+/)
+             .split(/[\s,.\-!?:;()]+/)
             .map((w) => w.trim())
             .filter((w) => w.length > 2 && !stopwords.has(w));
 
@@ -247,7 +247,7 @@ export default function TVShowPage() {
           recommendedList = [...recommendedList, ...movies];
         }
 
-        // Deduplicate final recommendations list to prevent duplicates
+        // Deduplicate results
         const uniqueRecommendations = [];
         const seenIds = new Set();
         const seenTitles = new Set();

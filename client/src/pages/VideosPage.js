@@ -275,7 +275,7 @@ export default function VideosPage() {
   }, [videos]);
 
   const heroVideos = useMemo(() => {
-    // Top 4 trending videos/shows for the hero carousel
+    // Hero carousel items
     return trendingVideos.slice(0, 4);
   }, [trendingVideos]);
 

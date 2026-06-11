@@ -123,13 +123,27 @@ const uploadedHandler = async (job) => {
           height: videoUpload.height || 0,
         };
 
+        const targetRenditions = [
+          { label: '360p',  height: 360,  name: 'hls_360p',  bandwidth: 800000 },
+          { label: '480p',  height: 480,  name: 'hls_480p',  bandwidth: 1400000 },
+          { label: '720p',  height: 720,  name: 'hls_720p',  bandwidth: 2500000 },
+          { label: '1080p', height: 1080, name: 'hls_1080p', bandwidth: 5000000 },
+        ].filter(q => q.height <= resolution.height);
+
+        const qualities = targetRenditions.map(q => ({
+          label: q.label,
+          path: hlsPath ? hlsPath.replace('/sp_full_hd/', `/sp_full_hd/${q.name}/`) : '',
+          bandwidth: q.bandwidth,
+          height: q.height,
+        }));
+
         result = {
           hlsPath,
           thumbnailUrl,
           thumbnailPath: null,
           duration,
           resolution,
-          qualities: [],
+          qualities,
         };
 
         if (fs.existsSync(filePath)) {
